@@ -225,24 +225,25 @@ button {
 }
 
 .nav-item-icon {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 0.6rem;
   display: grid;
   place-items: center;
   color: var(--text-strong);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .nav-item-icon svg,
 .lane-mark svg,
 .card-icon-button svg,
 .resource-link-icon svg {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 1.08rem;
+  height: 1.08rem;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 2.1;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -431,8 +432,8 @@ button {
 }
 
 .lane-mark {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 2.7rem;
+  height: 2.7rem;
   border-radius: 1rem;
   display: grid;
   place-items: center;
@@ -627,6 +628,20 @@ button {
 .button-danger {
   background: rgba(187, 91, 55, 0.08);
   color: var(--accent-strong);
+}
+
+.button-dark,
+.button-dark-soft {
+  color: #fff9f3;
+}
+
+.button-dark {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.button-dark-soft {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .search-panel,

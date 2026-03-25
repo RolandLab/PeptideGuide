@@ -1197,8 +1197,8 @@ function renderInspector() {
 
       <div class="detail-actions">
         <button class="button" data-action="toggle-save" data-id="${escapeHtml(compound.id)}">${isSaved ? "Saved" : "Save compound"}</button>
-        <button class="button-ghost" data-action="toggle-compare" data-id="${escapeHtml(compound.id)}">${isCompared ? "In compare" : "Add to compare"}</button>
-        <button class="button-quiet" data-action="share-compound" data-id="${escapeHtml(compound.id)}">Share</button>
+        <button class="button-ghost button-dark" data-action="toggle-compare" data-id="${escapeHtml(compound.id)}">${isCompared ? "In compare" : "Add to compare"}</button>
+        <button class="button-quiet button-dark-soft" data-action="share-compound" data-id="${escapeHtml(compound.id)}">Share</button>
       </div>
 
       <section class="detail-section">
@@ -1365,19 +1365,19 @@ function persistState() {
 
 function renderIcon(name) {
   const icons = {
-    house: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5L12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/></svg>`,
-    magnifyingglass: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="5.5"/><path d="M16 16l4 4"/></svg>`,
-    "square.split.2x2": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M12 5v14"/><path d="M4 12h16"/></svg>`,
-    bookmark: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10v15l-5-3-5 3z"/></svg>`,
+    house: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11.2 12 5.2l7.5 6"/><path d="M7 10.4V19h10v-8.6"/><path d="M10.2 19v-4.8h3.6V19"/></svg>`,
+    magnifyingglass: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="4.9"/><path d="M14.2 14.2 19 19"/></svg>`,
+    "square.split.2x2": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.4"/><path d="M12 5v14"/><path d="M4.5 12h15"/></svg>`,
+    bookmark: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10v14.2l-5-2.9-5 2.9z"/></svg>`,
     "bookmark.fill": `<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><path d="M7 4.5h10v15l-5-3-5 3z"/></svg>`,
-    gearshape: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.25"/><path d="M12 4.5v2.1"/><path d="M12 17.4v2.1"/><path d="M4.5 12h2.1"/><path d="M17.4 12h2.1"/><path d="M6.7 6.7l1.5 1.5"/><path d="M15.8 15.8l1.5 1.5"/><path d="M17.3 6.7l-1.5 1.5"/><path d="M8.2 15.8l-1.5 1.5"/></svg>`,
-    scalemass: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14"/><path d="M12 6.5v3"/><path d="M7 17.5a5 5 0 0 1 10 0"/><path d="M12 14.5l2.8-2"/></svg>`,
-    "cross.case": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M9 7V5.5h6V7"/><path d="M12 10v5"/><path d="M9.5 12.5h5"/></svg>`,
-    "brain.head.profile": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18c-2.8 0-5-2.2-5-5V8a4 4 0 0 1 4-4h2.7c2.4 0 4.3 1.9 4.3 4.3V12a6 6 0 0 1-6 6z"/><path d="M11 8.5a2 2 0 0 0-2 2"/><path d="M11 12.5a2 2 0 0 1-2 2"/></svg>`,
-    "figure.strengthtraining.traditional": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10.5h12"/><path d="M4.5 8.5v4"/><path d="M19.5 8.5v4"/><path d="M8.5 10.5l2.5 7"/><path d="M15.5 10.5L13 17.5"/><circle cx="12" cy="6.5" r="1.5"/></svg>`,
-    allergens: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l6 2.3v4.7c0 4-2.3 6.4-6 8.1-3.7-1.7-6-4.1-6-8.1V6.8z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>`,
-    sparkles: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l1.2 3.3L16.5 9l-3.3 1.2L12 13.5l-1.2-3.3L7.5 9l3.3-1.2z"/><path d="M18 14.5l.8 2.1 2.2.8-2.2.8-.8 2.1-.8-2.1-2.2-.8 2.2-.8z"/><path d="M6 14.5l.8 2.1 2.2.8-2.2.8-.8 2.1-.8-2.1-2.2-.8 2.2-.8z"/></svg>`,
-    "bolt.heart": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5L8 12h3l-1 8.5L16 11h-3z"/><path d="M17.5 5.8a2.8 2.8 0 0 1 2.7 2.8c0 2.4-2 4.1-4.7 6.4-2.7-2.3-4.7-4-4.7-6.4a2.8 2.8 0 0 1 4.7-2.1 2.8 2.8 0 0 1 2-0.7z"/></svg>`,
+    gearshape: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M12 4.3v2.3"/><path d="M12 17.4v2.3"/><path d="M4.3 12h2.3"/><path d="M17.4 12h2.3"/><path d="M6.8 6.8 8.4 8.4"/><path d="m15.6 15.6 1.6 1.6"/><path d="m17.2 6.8-1.6 1.6"/><path d="m8.4 15.6-1.6 1.6"/></svg>`,
+    scalemass: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10.2a7 7 0 0 1 14 0v6.3H5z"/><path d="M12 7.1v3.2"/><path d="m12 10.2 3.1-1.9"/></svg>`,
+    "cross.case": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="7.2" width="15" height="11.2" rx="2.2"/><path d="M9 7.2V5.6h6v1.6"/><path d="M12 10.1v5.4"/><path d="M9.3 12.8h5.4"/></svg>`,
+    "brain.head.profile": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.8 18c-2.8 0-4.8-2.2-4.8-5v-3c0-3.2 2.3-5.5 5.4-5.5h1.8c2.8 0 4.8 2 4.8 4.8v2.9c0 3.3-2.7 5.8-6.2 5.8z"/><path d="M10.8 8.2c-1.2.2-2 1.1-2 2.2"/><path d="M10.8 12.4c-1.2.1-2 .9-2 2"/></svg>`,
+    "figure.strengthtraining.traditional": `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.8" r="1.7"/><path d="M6 9.8h12"/><path d="M4.2 8.2v3.2"/><path d="M19.8 8.2v3.2"/><path d="m9.3 10 2.7 3.4 2.7-3.4"/><path d="m10.8 13.4-1.4 4.8"/><path d="m13.2 13.4 1.4 4.8"/></svg>`,
+    allergens: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.7 18 7v4.6c0 3.8-2.1 6.2-6 7.9-3.9-1.7-6-4.1-6-7.9V7z"/><path d="M12 8.8v5.8"/><path d="M9.1 11.7h5.8"/></svg>`,
+    sparkles: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4.5 1.3 3.6 3.7 1.3-3.7 1.3-1.3 3.6-1.3-3.6-3.7-1.3 3.7-1.3z"/><path d="m18.2 14.2.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/><path d="m5.8 14.2.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/></svg>`,
+    "bolt.heart": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12.8 3.8-4.3 7h2.9l-.9 6.4 4.9-7h-2.8z"/><path d="M17.3 5.8c1.6 0 2.9 1.2 2.9 2.9 0 2.2-1.9 3.8-4.7 6.1-2.8-2.3-4.7-3.9-4.7-6.1 0-1.7 1.2-2.9 2.9-2.9 1 0 1.9.5 2.5 1.2.6-.7 1.4-1.2 2.5-1.2Z"/></svg>`,
     "arrow.up.right": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16L16 8"/><path d="M9 8h7v7"/></svg>`,
   };
 
