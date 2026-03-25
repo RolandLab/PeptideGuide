@@ -1,82 +1,59 @@
-const DATA_PATH = "../Sources/PeptideGuideApp/Resources/peptides.json";
-const STORAGE_KEY = "peptideguide-web-state-v1";
+const SWIFT_DATA_PATH = "../Sources/PeptideGuideApp/Data/MockCompounds.swift";
+const STORAGE_KEY = "peptideguide-web-state-v2";
 
 const laneConfig = {
   metabolism: {
     id: "metabolism",
     title: "Metabolism / Fat Loss",
     subtitle: "Appetite, glucose handling, body composition, and metabolic signaling.",
-    icon: "MT",
+    icon: "scalemass",
   },
   recovery: {
     id: "recovery",
     title: "Recovery / Healing",
     subtitle: "Repair-oriented compounds focused on tissue recovery and inflammatory tone.",
-    icon: "RC",
+    icon: "cross.case",
   },
   cognitive: {
     id: "cognitive",
     title: "Cognitive / Mood",
     subtitle: "Focus, stress resilience, mood, and neuro-supportive pathways.",
-    icon: "CG",
+    icon: "brain.head.profile",
   },
   performance: {
     id: "performance",
     title: "Performance / Growth",
     subtitle: "Growth hormone secretagogues, performance signaling, and physique support.",
-    icon: "PF",
+    icon: "figure.strengthtraining.traditional",
   },
   immune: {
     id: "immune",
     title: "Immune / Systemic",
     subtitle: "Immune communication, mucosal health, and systemic regulation.",
-    icon: "IM",
+    icon: "allergens",
   },
   appearance: {
     id: "appearance",
     title: "Appearance",
     subtitle: "Skin, hair, pigmentation, and visible quality-of-life oriented compounds.",
-    icon: "AP",
+    icon: "sparkles",
   },
   energy: {
     id: "energy",
     title: "Cellular Energy",
     subtitle: "Mitochondrial efficiency, endurance, and cellular energy maintenance.",
-    icon: "EN",
+    icon: "bolt.heart",
   },
 };
 
-const goalLabelMap = {
-  metabolicHealth: "Metabolic Health",
-  fatLoss: "Fat Loss",
-  energy: "Energy",
-  bodyComposition: "Body Composition",
-  longevity: "Longevity",
-  healing: "Healing",
-  recovery: "Recovery",
-  inflammationBalance: "Inflammation Balance",
-  cognition: "Cognition",
-  mood: "Mood",
-  performance: "Performance",
-  immuneSupport: "Immune Support",
-  pigmentation: "Pigmentation",
-};
+const libraryNav = [
+  { id: "home", title: "Home", icon: "house" },
+  { id: "explore", title: "Explore", icon: "magnifyingglass" },
+  { id: "compare", title: "Compare", icon: "square.split.2x2" },
+  { id: "saved", title: "Saved", icon: "bookmark" },
+];
 
-const goalToLaneMap = {
-  metabolicHealth: ["metabolism"],
-  fatLoss: ["metabolism"],
-  bodyComposition: ["metabolism", "performance"],
-  energy: ["energy", "metabolism"],
-  longevity: ["energy"],
-  healing: ["recovery"],
-  recovery: ["recovery"],
-  inflammationBalance: ["recovery", "immune"],
-  cognition: ["cognitive"],
-  mood: ["cognitive"],
-  performance: ["performance"],
-  immuneSupport: ["immune"],
-  pigmentation: ["appearance"],
-};
+const preferenceNav = { id: "preferences", title: "Preferences", icon: "gearshape" };
 
 const viewMeta = {
   home: {
@@ -85,11 +62,11 @@ const viewMeta = {
   },
   explore: {
     title: "Explore All Compounds",
-    subtitle: "Search by name, lane, goals, or evidence framing.",
+    subtitle: "Search by name, category, tag, or summary text.",
   },
   compare: {
     title: "Compare Compounds",
-    subtitle: "Review 2-3 compounds side by side across mechanism, benefits, and research.",
+    subtitle: "Compare 2-3 compounds side by side across mechanism, systems, and differentiators.",
   },
   saved: {
     title: "Saved",
@@ -97,12 +74,22 @@ const viewMeta = {
   },
   preferences: {
     title: "Preferences",
-    subtitle: "Adjust launch behavior and reading density for the inspector.",
+    subtitle: "Adjust launch behavior and reading density for the detail pane.",
   },
 };
 
-const suggestedIds = ["retatrutide", "bpc157", "semax", "ss31"];
-const trendingIds = ["tirzepatide", "tesamorelin", "ghkcu", "motsc"];
+const compareRows = [
+  { label: "Primary systems affected", key: "primarySystems" },
+  { label: "Appetite effect", key: "appetiteEffect" },
+  { label: "Recovery relevance", key: "recoveryRelevance" },
+  { label: "Cognitive relevance", key: "cognitiveRelevance" },
+  { label: "Energy / mitochondria relevance", key: "energyRelevance" },
+  { label: "Research maturity", key: "researchMaturity" },
+  { label: "Notable differentiators", key: "differentiators" },
+];
+
+const suggestedNames = ["Retatrutide", "BPC-157", "Semax", "SS-31"];
+const trendingNames = ["Tirzepatide", "Tesamorelin", "GHK-Cu", "MOTS-c"];
 
 const app = document.querySelector("#app");
 
@@ -132,13 +119,13 @@ async function boot() {
   bindEvents();
 
   try {
-    const response = await fetch(DATA_PATH);
+    const response = await fetch(SWIFT_DATA_PATH);
     if (!response.ok) {
-      throw new Error(`Unable to load ${DATA_PATH}`);
+      throw new Error(`Unable to load ${SWIFT_DATA_PATH}`);
     }
 
-    const rawCompounds = await response.json();
-    state.compounds = rawCompounds.map(normalizeCompound);
+    const source = await response.text();
+    state.compounds = parseMockCompoundsSource(source);
     state.compoundMap = new Map(state.compounds.map((compound) => [compound.id, compound]));
     parseHashRoute(true);
     ensureSelection();
@@ -160,6 +147,7 @@ function bindEvents() {
       event.preventDefault();
       state.focusTarget = "search";
       setView({ name: "explore" });
+      return;
     }
 
     if (event.key === "Escape" && state.pickerOpen) {
@@ -169,13 +157,24 @@ function bindEvents() {
   });
 
   document.addEventListener("click", (event) => {
-    const actionNode = event.target.closest("[data-action]");
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const actionNode = target.closest("[data-action]");
     if (actionNode) {
       handleAction(actionNode, event);
       return;
     }
 
-    const compoundCard = event.target.closest("[data-compound-card]");
+    if (state.pickerOpen && target.classList.contains("modal-backdrop")) {
+      state.pickerOpen = false;
+      renderApp();
+      return;
+    }
+
+    const compoundCard = target.closest("[data-compound-card]");
     if (compoundCard) {
       openCompound(compoundCard.dataset.compoundCard, true);
     }
@@ -191,6 +190,7 @@ function bindEvents() {
       state.searchText = target.value;
       state.focusTarget = "search";
       renderApp();
+      return;
     }
 
     if (target.dataset.role === "picker-filter") {
@@ -202,14 +202,13 @@ function bindEvents() {
 }
 
 function handleAction(node, event) {
-  const { action } = node.dataset;
+  const action = node.dataset.action;
   if (!action) {
     return;
   }
 
-  if (action !== "open-modal") {
-    event.preventDefault();
-  }
+  event.preventDefault();
+  event.stopPropagation();
 
   if (action === "set-view") {
     setView({ name: node.dataset.view });
@@ -222,13 +221,11 @@ function handleAction(node, event) {
   }
 
   if (action === "toggle-save") {
-    event.stopPropagation();
     toggleSaved(node.dataset.id);
     return;
   }
 
   if (action === "toggle-compare") {
-    event.stopPropagation();
     toggleCompare(node.dataset.id);
     return;
   }
@@ -240,8 +237,8 @@ function handleAction(node, event) {
 
   if (action === "clear-tags") {
     state.activeTags = [];
-    renderApp();
     persistState();
+    renderApp();
     return;
   }
 
@@ -252,8 +249,8 @@ function handleAction(node, event) {
 
   if (action === "set-sort") {
     state.sortOption = node.dataset.sort;
-    renderApp();
     persistState();
+    renderApp();
     return;
   }
 
@@ -268,6 +265,9 @@ function handleAction(node, event) {
   }
 
   if (action === "open-picker") {
+    if (state.compareIds.length >= 3) {
+      return;
+    }
     state.pickerOpen = true;
     state.pickerFilter = "";
     state.focusTarget = "picker-filter";
@@ -315,75 +315,106 @@ function handleAction(node, event) {
     state.readingDensity = node.dataset.value;
     persistState();
     renderApp();
-    return;
   }
 }
 
-function normalizeCompound(item) {
-  const goalLabels = (item.matchingGoals || []).map((goal) => goalLabelMap[goal] || humanize(goal));
-  const lanes = deriveLanes(item.matchingGoals || [], item.category || "");
-  const aliases = (item.aliases || []).filter(Boolean);
-  const tags = unique([
-    ...goalLabels,
-    evidenceLabel(item.evidenceLevel),
-    ...aliases,
-  ]);
+function parseMockCompoundsSource(source) {
+  const blocks = source
+    .split("makeCompound(")
+    .slice(1)
+    .map((segment) => segment.split("\n        )")[0]);
 
-  return {
-    id: item.id,
-    name: item.name,
-    aliases,
-    audienceNote: item.audienceNote || "",
-    category: item.category || "",
-    categorySummary: item.categorySummary || "",
-    evidenceLevel: item.evidenceLevel || "mixed",
-    matchingGoals: item.matchingGoals || [],
-    goalLabels,
-    lanes,
-    tags,
-    mechanism: item.whatItDoesInBody || "",
-    benefits: item.potentialBenefits || "",
-    research: item.researchSnapshot || "",
-    resources: item.suggestedResources || "",
-    searchableText: [
-      item.name,
-      aliases.join(" "),
-      item.category,
-      item.categorySummary,
-      goalLabels.join(" "),
-      item.audienceNote,
-      item.whatItDoesInBody,
-      item.potentialBenefits,
-      item.researchSnapshot,
-      item.suggestedResources,
-      item.evidenceLevel,
-    ]
-      .join(" ")
-      .toLowerCase(),
-  };
-}
+  return blocks.map((block) => {
+    const fields = {};
 
-function deriveLanes(goals, category) {
-  const lanes = new Set();
+    block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const match = line.match(/^(\w+):\s*(.+?)(,)?$/);
+        if (!match) {
+          return;
+        }
+        const [, key, value] = match;
+        fields[key] = value;
+      });
 
-  goals.forEach((goal) => {
-    (goalToLaneMap[goal] || []).forEach((laneId) => lanes.add(laneId));
+    const categories = parseCategoryArray(fields.categories);
+    const tags = parseStringArray(fields.tags);
+    const name = parseQuotedValue(fields.name);
+    const id = slugify(name);
+    const resources = buildResourceLinks(name);
+
+    return {
+      id,
+      name,
+      categories,
+      category: categories.map((categoryId) => laneConfig[categoryId].title).join(" • "),
+      categorySummary: categories[0] ? laneConfig[categories[0]].subtitle : "",
+      lanes: categories,
+      tags,
+      summary: parseQuotedValue(fields.summary),
+      mechanism: parseQuotedValue(fields.mechanism),
+      benefits: parseQuotedValue(fields.benefits),
+      research: parseQuotedValue(fields.research),
+      primarySystems: parseQuotedValue(fields.primarySystems),
+      appetiteEffect: parseQuotedValue(fields.appetiteEffect),
+      recoveryRelevance: parseQuotedValue(fields.recoveryRelevance),
+      cognitiveRelevance: parseQuotedValue(fields.cognitiveRelevance),
+      energyRelevance: parseQuotedValue(fields.energyRelevance),
+      researchMaturity: parseQuotedValue(fields.researchMaturity),
+      differentiators: parseQuotedValue(fields.differentiators),
+      resources,
+      searchableText: [
+        name,
+        categories.map((categoryId) => laneConfig[categoryId].title).join(" "),
+        tags.join(" "),
+        parseQuotedValue(fields.summary),
+        parseQuotedValue(fields.mechanism),
+        parseQuotedValue(fields.benefits),
+        parseQuotedValue(fields.research),
+        parseQuotedValue(fields.primarySystems),
+        parseQuotedValue(fields.differentiators),
+      ]
+        .join(" ")
+        .toLowerCase(),
+    };
   });
+}
 
-  const categoryValue = category.toLowerCase();
-  if (categoryValue.includes("metabolic")) lanes.add("metabolism");
-  if (categoryValue.includes("recovery")) lanes.add("recovery");
-  if (categoryValue.includes("cognitive")) lanes.add("cognitive");
-  if (categoryValue.includes("performance") || categoryValue.includes("growth hormone")) lanes.add("performance");
-  if (categoryValue.includes("immune")) lanes.add("immune");
-  if (categoryValue.includes("pigmentation")) lanes.add("appearance");
-  if (categoryValue.includes("energy") || categoryValue.includes("mitochondrial")) lanes.add("energy");
-
-  if (lanes.size === 0) {
-    lanes.add("metabolism");
+function parseQuotedValue(value = "") {
+  const normalized = value.trim().replace(/,$/, "");
+  if (normalized.startsWith("\"") && normalized.endsWith("\"")) {
+    return normalized.slice(1, -1);
   }
+  return normalized;
+}
 
-  return Array.from(lanes);
+function parseStringArray(value = "") {
+  return Array.from(value.matchAll(/"([^"]+)"/g)).map((match) => match[1]);
+}
+
+function parseCategoryArray(value = "") {
+  return Array.from(value.matchAll(/\.(\w+)/g)).map((match) => match[1]);
+}
+
+function buildResourceLinks(name) {
+  const query = encodeURIComponent(name.replace(/\//g, " "));
+  return [
+    {
+      title: "PubMed Search",
+      url: `https://pubmed.ncbi.nlm.nih.gov/?term=${query}`,
+    },
+    {
+      title: "ClinicalTrials.gov",
+      url: `https://clinicaltrials.gov/search?term=${query}`,
+    },
+    {
+      title: "Google Scholar Overview",
+      url: `https://scholar.google.com/scholar?q=${query}`,
+    },
+  ];
 }
 
 function parseHashRoute(initialLoad) {
@@ -394,7 +425,6 @@ function parseHashRoute(initialLoad) {
   }
 
   const [head, tail] = rawHash.split("/");
-
   if (head === "lane" && laneConfig[tail]) {
     state.view = { name: "lane", laneId: tail };
     return;
@@ -434,6 +464,7 @@ function openCompound(id, trackView) {
   if (trackView) {
     state.recentIds = [id, ...state.recentIds.filter((currentId) => currentId !== id)].slice(0, 8);
   }
+
   persistState();
   renderApp();
 }
@@ -444,6 +475,7 @@ function toggleSaved(id) {
   } else {
     state.savedIds = [...state.savedIds, id];
   }
+
   persistState();
   renderApp();
 }
@@ -452,6 +484,7 @@ function addCompare(id) {
   if (state.compareIds.includes(id) || state.compareIds.length >= 3) {
     return;
   }
+
   state.compareIds = [...state.compareIds, id];
   state.selectedCompoundId = id;
   state.recentIds = [id, ...state.recentIds.filter((currentId) => currentId !== id)].slice(0, 8);
@@ -473,6 +506,7 @@ function toggleCompare(id) {
     state.pickerOpen = true;
     state.focusTarget = "picker-filter";
   }
+
   persistState();
   renderApp();
 }
@@ -483,6 +517,7 @@ function toggleTag(tag) {
   } else {
     state.activeTags = [...state.activeTags, tag];
   }
+
   persistState();
   renderApp();
 }
@@ -498,11 +533,10 @@ function saveCompareSet() {
     return;
   }
 
-  const title = normalizedIds.map((id) => state.compoundMap.get(id)?.name || id).join(" vs ");
   state.savedCompareSets = [
     {
       id: `compare-${Date.now()}`,
-      title,
+      title: normalizedIds.map((id) => state.compoundMap.get(id)?.name || id).join(" vs "),
       ids: normalizedIds,
     },
     ...state.savedCompareSets,
@@ -517,10 +551,12 @@ function loadCompareSet(id) {
   if (!selectedSet) {
     return;
   }
+
   state.compareIds = selectedSet.ids.filter((compoundId) => state.compoundMap.has(compoundId)).slice(0, 3);
   if (state.compareIds[0]) {
     state.selectedCompoundId = state.compareIds[0];
   }
+
   persistState();
   setView({ name: "compare" });
 }
@@ -538,7 +574,7 @@ function shareCompound(id) {
   }
 
   const shareText = `${compound.name}\n${compound.category}\n${window.location.href}`;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
+  if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(shareText).catch(() => {
       window.alert(`Copy this compound manually:\n\n${shareText}`);
     });
@@ -554,7 +590,7 @@ function ensureSelection() {
   }
 
   const fallbackId = state.recentIds.find((id) => state.compoundMap.has(id))
-    || suggestedIds.find((id) => state.compoundMap.has(id))
+    || nameListToIds(suggestedNames).find((id) => state.compoundMap.has(id))
     || state.compounds[0]?.id
     || null;
 
@@ -563,7 +599,6 @@ function ensureSelection() {
 
 function filteredCompounds(laneId = null) {
   const query = state.searchText.trim().toLowerCase();
-
   return state.compounds.filter((compound) => {
     const matchesLane = !laneId || compound.lanes.includes(laneId);
     const matchesTags = state.activeTags.length === 0 || state.activeTags.every((tag) => compound.tags.includes(tag));
@@ -605,9 +640,11 @@ function availableTags(laneId = null) {
 }
 
 function compoundsFromIds(ids) {
-  return ids
-    .map((id) => state.compoundMap.get(id))
-    .filter(Boolean);
+  return ids.map((id) => state.compoundMap.get(id)).filter(Boolean);
+}
+
+function nameListToIds(names) {
+  return names.map((name) => slugify(name));
 }
 
 function renderApp() {
@@ -638,16 +675,8 @@ function renderApp() {
 }
 
 function renderSidebar() {
-  const savedCount = state.savedIds.length;
   const compareCount = state.compareIds.length;
-
-  const libraryItems = [
-    { id: "home", title: "Home", note: "Overview", count: null },
-    { id: "explore", title: "Explore", note: "All compounds", count: state.compounds.length },
-    { id: "compare", title: "Compare", note: "2-3 compounds", count: compareCount || null },
-    { id: "saved", title: "Saved", note: "Bookmarks", count: savedCount || null },
-  ];
-
+  const savedCount = state.savedIds.length;
   const laneItems = Object.values(laneConfig).map((lane) => ({
     ...lane,
     count: state.compounds.filter((compound) => compound.lanes.includes(lane.id)).length,
@@ -664,56 +693,49 @@ function renderSidebar() {
           </div>
         </div>
       </div>
+
       <div class="sidebar-nav">
         <section class="nav-group" data-reveal style="--delay: 40ms">
           <div class="nav-label">Library</div>
-          ${libraryItems.map(renderLibraryNavItem).join("")}
+          ${libraryNav
+            .map((item) => renderNavItem(item, state.view.name === item.id, item.id === "compare" ? compareCount : item.id === "saved" ? savedCount : null))
+            .join("")}
         </section>
-        <section class="nav-group" data-reveal style="--delay: 120ms">
+
+        <section class="nav-group" data-reveal style="--delay: 100ms">
           <div class="nav-label">Lanes</div>
-          ${laneItems.map(renderLaneNavItem).join("")}
+          ${laneItems
+            .map((item) => renderLaneNavItem(item, state.view.name === "lane" && state.view.laneId === item.id))
+            .join("")}
         </section>
-        <section class="nav-group" data-reveal style="--delay: 180ms">
+
+        <section class="nav-group" data-reveal style="--delay: 140ms">
           <div class="nav-label">Settings</div>
-          ${renderLibraryNavItem({ id: "preferences", title: "Preferences", note: "Launch and reading", count: null })}
+          ${renderNavItem(preferenceNav, state.view.name === "preferences", null)}
         </section>
-      </div>
-      <div class="sidebar-foot">
-        <div class="status-block">
-          <strong>${state.compounds.length} compounds loaded</strong>
-          <span>Saved state is local to this browser. Compare sets and preferences persist automatically.</span>
-        </div>
       </div>
     </aside>
   `;
 }
 
-function renderLibraryNavItem(item) {
-  const isActive = state.view.name === item.id;
+function renderNavItem(item, isActive, count) {
   return `
     <button class="nav-item ${isActive ? "is-active" : ""}" data-action="set-view" data-view="${escapeHtml(item.id)}">
       <span class="nav-item-main">
-        <span class="nav-item-icon">${escapeHtml(item.title.slice(0, 2).toUpperCase())}</span>
-        <span class="nav-item-meta">
-          <span class="nav-item-title">${escapeHtml(item.title)}</span>
-          <span class="nav-item-note">${escapeHtml(item.note)}</span>
-        </span>
+        <span class="nav-item-icon">${renderIcon(item.icon)}</span>
+        <span class="nav-item-title">${escapeHtml(item.title)}</span>
       </span>
-      ${item.count ? `<span class="nav-count">${item.count}</span>` : ""}
+      ${count ? `<span class="nav-count">${count}</span>` : ""}
     </button>
   `;
 }
 
-function renderLaneNavItem(item) {
-  const isActive = state.view.name === "lane" && state.view.laneId === item.id;
+function renderLaneNavItem(item, isActive) {
   return `
-    <button class="nav-item ${isActive ? "is-active" : ""}" data-action="set-lane" data-lane="${escapeHtml(item.id)}">
+    <button class="nav-item nav-item-lane ${isActive ? "is-active" : ""}" data-action="set-lane" data-lane="${escapeHtml(item.id)}">
       <span class="nav-item-main">
-        <span class="nav-item-icon">${escapeHtml(item.icon)}</span>
-        <span class="nav-item-meta">
-          <span class="nav-item-title">${escapeHtml(item.title)}</span>
-          <span class="nav-item-note">${escapeHtml(item.subtitle)}</span>
-        </span>
+        <span class="nav-item-icon">${renderIcon(item.icon)}</span>
+        <span class="nav-item-title">${escapeHtml(item.title)}</span>
       </span>
       <span class="nav-count">${item.count}</span>
     </button>
@@ -722,7 +744,6 @@ function renderLaneNavItem(item) {
 
 function renderWorkspace() {
   const meta = currentViewMeta();
-
   return `
     <section class="workspace-head" data-reveal style="--delay: 40ms">
       <div>
@@ -731,7 +752,7 @@ function renderWorkspace() {
       </div>
       <div class="workspace-actions">
         <button class="button-ghost" data-action="set-view" data-view="explore">Browse library</button>
-        <button class="button" data-action="open-picker">Add to compare</button>
+        <button class="button" data-action="open-picker" ${state.compareIds.length >= 3 ? "disabled" : ""}>Add to compare</button>
       </div>
     </section>
     <section class="workspace-body">
@@ -771,8 +792,8 @@ function renderViewBody() {
 }
 
 function renderHomeView() {
+  const suggested = compoundsFromIds(nameListToIds(suggestedNames));
   const recent = compoundsFromIds(state.recentIds);
-  const suggested = compoundsFromIds(suggestedIds);
   const laneCards = Object.values(laneConfig);
 
   return `
@@ -792,48 +813,48 @@ function renderHomeView() {
     </div>
 
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 90ms">
+      <div class="section-head" data-reveal style="--delay: 180ms">
         <div>
           <h2 class="section-title">Explore by lane</h2>
-          <p class="section-copy">Choose a working lane and then refine by goals or evidence.</p>
+          <p class="section-copy">Mechanisms, research, and potential benefits organized into focused lanes.</p>
         </div>
       </div>
       <div class="lane-grid">
         ${laneCards
-          .map((lane, index) => renderLaneCard(lane, state.compounds.filter((compound) => compound.lanes.includes(lane.id)).length, 140 + index * 40))
+          .map((lane, index) => renderLaneCard(lane, state.compounds.filter((compound) => compound.lanes.includes(lane.id)).length, 220 + index * 30))
           .join("")}
       </div>
     </section>
 
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 240ms">
+      <div class="section-head" data-reveal style="--delay: 360ms">
         <div>
           <h2 class="section-title">Suggested for you</h2>
-          <p class="section-copy">A curated starting set that mirrors the desktop app’s front door.</p>
+          <p class="section-copy">A curated starting set for fast exploration.</p>
         </div>
       </div>
       <div class="card-grid">
-        ${renderCompoundCards(suggested, true, 280)}
+        ${renderCompoundCards(suggested, true, 390)}
       </div>
     </section>
 
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 340ms">
+      <div class="section-head" data-reveal style="--delay: 500ms">
         <div>
           <h2 class="section-title">Recently viewed</h2>
-          <p class="section-copy">Return to the compounds you opened in the inspector.</p>
+          <p class="section-copy">Shortcuts back to compounds you opened in the detail pane.</p>
         </div>
       </div>
       ${recent.length
-        ? `<div class="card-grid">${renderCompoundCards(recent, true, 380)}</div>`
-        : renderEmptyState("No recent compounds", "Open a profile from any lane or from Explore to populate this section.", "RV", 380)}
+        ? `<div class="card-grid">${renderCompoundCards(recent, true, 540)}</div>`
+        : renderEmptyState("No recent compounds", "Open a compound from any lane or from Explore to populate this section.", "RV", 540)}
     </section>
   `;
 }
 
 function renderExploreView() {
   const results = sortedCompounds(filteredCompounds());
-  const trending = compoundsFromIds(trendingIds);
+  const trending = compoundsFromIds(nameListToIds(trendingNames));
 
   return `
     ${renderSearchPanel(null, 60)}
@@ -847,33 +868,33 @@ function renderExploreView() {
             </div>
           </div>
           <div class="card-grid">
-            ${renderCompoundCards(trending, true, 150)}
+            ${renderCompoundCards(trending, true, 160)}
           </div>
         </section>
       `
       : ""}
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 220ms">
+      <div class="section-head" data-reveal style="--delay: 240ms">
         <div>
           <h2 class="section-title">${state.searchText ? "Results" : "All compounds"}</h2>
           <p class="section-copy">${results.length} matches across the full library.</p>
         </div>
       </div>
       ${results.length
-        ? `<div class="card-grid">${renderCompoundCards(results, false, 250)}</div>`
-        : renderEmptyState("No matches found", "Try a different search term or clear one or more active tags.", "SR", 260)}
+        ? `<div class="card-grid">${renderCompoundCards(results, false, 270)}</div>`
+        : renderEmptyState("No matches found", "Try a different search term or clear one or more selected tags.", "SR", 270)}
     </section>
   `;
 }
 
 function renderLaneView(laneId) {
-  const results = sortedCompounds(filteredCompounds(laneId));
   const lane = laneConfig[laneId];
+  const results = sortedCompounds(filteredCompounds(laneId));
 
   return `
     ${renderSearchPanel(laneId, 60)}
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 120ms">
+      <div class="section-head section-head-stack" data-reveal style="--delay: 120ms">
         <div>
           <h2 class="section-title">${escapeHtml(lane.title)}</h2>
           <p class="section-copy">${escapeHtml(lane.subtitle)}</p>
@@ -882,11 +903,7 @@ function renderLaneView(laneId) {
           ${["alphabetical", "recentlyViewed", "savedFirst"]
             .map(
               (sortOption) => `
-                <button
-                  class="chip ${state.sortOption === sortOption ? "is-active" : ""}"
-                  data-action="set-sort"
-                  data-sort="${sortOption}"
-                >
+                <button class="chip ${state.sortOption === sortOption ? "is-active" : ""}" data-action="set-sort" data-sort="${sortOption}">
                   ${escapeHtml(sortLabel(sortOption))}
                 </button>
               `,
@@ -906,27 +923,39 @@ function renderCompareView() {
 
   return `
     <section class="compare-surface" data-reveal style="--delay: 80ms">
-      <div class="compare-header">
+      <div class="compare-toolbar">
         <div>
-          <h2 class="section-title">Comparison set</h2>
-          <p class="section-copy">Compare 2-3 compounds side by side across the same decision fields.</p>
+          <h2 class="section-title">Selected Compounds</h2>
+          <p class="section-copy">Choose 2-3 compounds to compare mechanism, systems, and differentiators.</p>
         </div>
         <div class="surface-actions">
-          <button class="button-ghost" data-action="open-picker">Add compound</button>
-          <button class="button" data-action="save-compare-set">Save set</button>
+          <button class="button-ghost" data-action="save-compare-set" ${compareCompounds.length < 2 ? "disabled" : ""}>Save set</button>
+          <button class="button" data-action="open-picker" ${compareCompounds.length >= 3 ? "disabled" : ""}>Add Compound</button>
         </div>
       </div>
-      <div class="compare-selection">
-        ${[0, 1, 2]
-          .map((index) => renderCompareSlot(compareCompounds[index], 120 + index * 40))
-          .join("")}
-      </div>
+
+      ${compareCompounds.length
+        ? `
+          <div class="compare-pill-row">
+            ${compareCompounds
+              .map(
+                (compound) => `
+                  <div class="compare-pill">
+                    <button class="compare-pill-name" data-action="open-compound" data-id="${escapeHtml(compound.id)}">${escapeHtml(compound.name)}</button>
+                    <button class="compare-pill-remove" data-action="remove-compare" data-id="${escapeHtml(compound.id)}">×</button>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        `
+        : `<p class="section-copy compare-empty-note">No compounds selected yet.</p>`}
     </section>
 
     <section class="section">
       ${compareCompounds.length >= 2
         ? renderCompareTable(compareCompounds)
-        : renderEmptyState("Build a comparison", "Add at least two compounds to render the comparison table.", "CP", 220)}
+        : renderEmptyState("Build a comparison", "Add at least two compounds to render the comparison table.", "CP", 180)}
     </section>
   `;
 }
@@ -944,11 +973,11 @@ function renderSavedView() {
       </div>
       ${savedCompounds.length
         ? `<div class="saved-grid">${renderCompoundCards(savedCompounds, true, 120)}</div>`
-        : renderEmptyState("Nothing saved yet", "Use Save from any compound card or from the inspector to collect compounds here.", "SV", 140)}
+        : renderEmptyState("Nothing saved yet", "Use Save from any card or from the detail pane to collect compounds here.", "SV", 140)}
     </section>
 
     <section class="section">
-      <div class="section-head" data-reveal style="--delay: 220ms">
+      <div class="section-head" data-reveal style="--delay: 260ms">
         <div>
           <h2 class="section-title">Saved compare sets</h2>
           <p class="section-copy">Persisted comparison bundles you can reopen instantly.</p>
@@ -958,11 +987,11 @@ function renderSavedView() {
         ? `
           <div class="saved-grid">
             ${state.savedCompareSets
-              .map((set, index) => renderSavedSet(set, 260 + index * 30))
+              .map((set, index) => renderSavedSet(set, 300 + index * 30))
               .join("")}
           </div>
         `
-        : renderEmptyState("No saved compare sets", "Save any active comparison from the Compare workspace.", "CS", 260)}
+        : renderEmptyState("No saved compare sets", "Save any active comparison from the Compare workspace.", "CS", 300)}
     </section>
   `;
 }
@@ -977,11 +1006,7 @@ function renderPreferencesView() {
           ${["home", "explore", "compare", "saved"]
             .map(
               (option) => `
-                <button
-                  class="chip ${state.preferredLaunchScreen === option ? "is-active" : ""}"
-                  data-action="set-launch-screen"
-                  data-value="${option}"
-                >
+                <button class="chip ${state.preferredLaunchScreen === option ? "is-active" : ""}" data-action="set-launch-screen" data-value="${option}">
                   ${escapeHtml(option.charAt(0).toUpperCase() + option.slice(1))}
                 </button>
               `,
@@ -989,18 +1014,15 @@ function renderPreferencesView() {
             .join("")}
         </div>
       </div>
+
       <div class="preferences-row">
         <h2 class="section-title">Reading density</h2>
-        <p class="section-copy">Adjust spacing in the detail inspector for scanning or longer reading sessions.</p>
+        <p class="section-copy">Adjust spacing in the detail pane for scanning or longer reading sessions.</p>
         <div class="segmented">
           ${["comfortable", "compact"]
             .map(
               (option) => `
-                <button
-                  class="chip ${state.readingDensity === option ? "is-active" : ""}"
-                  data-action="set-density"
-                  data-value="${option}"
-                >
+                <button class="chip ${state.readingDensity === option ? "is-active" : ""}" data-action="set-density" data-value="${option}">
                   ${escapeHtml(option.charAt(0).toUpperCase() + option.slice(1))}
                 </button>
               `,
@@ -1016,13 +1038,7 @@ function renderSearchPanel(laneId, delay) {
   const tags = availableTags(laneId);
   return `
     <section class="search-panel" data-reveal style="--delay: ${delay}ms">
-      <input
-        class="search-field"
-        type="search"
-        data-role="search"
-        placeholder="Search compounds, goals, or evidence"
-        value="${escapeAttribute(state.searchText)}"
-      />
+      <input class="search-field" type="search" data-role="search" placeholder="Search compounds, tags, or summary text" value="${escapeAttribute(state.searchText)}" />
       <div class="surface-stack">
         ${tags
           .map(
@@ -1040,9 +1056,7 @@ function renderSearchPanel(laneId, delay) {
 }
 
 function renderCompoundCards(compounds, compact, startDelay) {
-  return compounds
-    .map((compound, index) => renderCompoundCard(compound, compact, startDelay + index * 30))
-    .join("");
+  return compounds.map((compound, index) => renderCompoundCard(compound, compact, startDelay + index * 30)).join("");
 }
 
 function renderCompoundCard(compound, compact, delay) {
@@ -1051,25 +1065,20 @@ function renderCompoundCard(compound, compact, delay) {
   const isSelected = state.selectedCompoundId === compound.id;
 
   return `
-    <article
-      class="compound-card ${isSelected ? "is-selected" : ""}"
-      data-compound-card="${escapeHtml(compound.id)}"
-      data-compact="${compact}"
-      data-reveal
-      style="--delay: ${delay}ms"
-      tabindex="0"
-    >
+    <article class="compound-card ${isSelected ? "is-selected" : ""}" data-compound-card="${escapeHtml(compound.id)}" data-compact="${compact}" data-reveal style="--delay: ${delay}ms">
       <div class="compound-card-top">
-        <div class="compound-card-name">
+        <div class="compound-card-title-block">
           <h3>${escapeHtml(compound.name)}</h3>
-          <span class="evidence-pill">${escapeHtml(evidenceLabel(compound.evidenceLevel))}</span>
+          <p class="compound-card-category">${escapeHtml(compound.category)}</p>
         </div>
-        <span class="ghost-chip">${escapeHtml(compound.category)}</span>
+        <button class="card-icon-button" data-action="toggle-save" data-id="${escapeHtml(compound.id)}" aria-label="${isSaved ? "Remove saved compound" : "Save compound"}">
+          ${renderIcon(isSaved ? "bookmark.fill" : "bookmark")}
+        </button>
       </div>
       <div class="compound-card-main">
-        <p class="compound-card-copy">${escapeHtml(compound.categorySummary || compound.audienceNote)}</p>
-        <div class="lane-card-meta">
-          ${compound.goalLabels.slice(0, compact ? 2 : 4).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+        <p class="compound-card-copy">${escapeHtml(compound.summary)}</p>
+        <div class="compound-card-tags">
+          ${compound.tags.slice(0, compact ? 2 : 3).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
         </div>
       </div>
       <div class="card-actions">
@@ -1084,7 +1093,7 @@ function renderLaneCard(lane, count, delay) {
   return `
     <button class="lane-card" data-action="set-lane" data-lane="${escapeHtml(lane.id)}" data-reveal style="--delay: ${delay}ms">
       <div class="lane-card-top">
-        <span class="lane-mark">${escapeHtml(lane.icon)}</span>
+        <span class="lane-mark">${renderIcon(lane.icon)}</span>
         <span class="ghost-chip mono">${count} compounds</span>
       </div>
       <div>
@@ -1098,65 +1107,34 @@ function renderLaneCard(lane, count, delay) {
   `;
 }
 
-function renderCompareSlot(compound, delay) {
-  if (!compound) {
-    return `
-      <div class="compare-slot" data-reveal style="--delay: ${delay}ms">
-        <div>
-          <strong>Open slot</strong>
-          <p>Add a compound from the library or from the picker.</p>
-        </div>
-        <div class="compare-selection-actions">
-          <button class="button-ghost" data-action="open-picker">Choose compound</button>
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="compare-slot" data-reveal style="--delay: ${delay}ms">
-      <div>
-        <strong>${escapeHtml(compound.name)}</strong>
-        <p>${escapeHtml(compound.category)}</p>
-      </div>
-      <div class="compare-selection-actions">
-        <button class="button-quiet" data-action="open-compound" data-id="${escapeHtml(compound.id)}">Open</button>
-        <button class="button-danger" data-action="remove-compare" data-id="${escapeHtml(compound.id)}">Remove</button>
-      </div>
-    </div>
-  `;
-}
-
 function renderCompareTable(compounds) {
-  const rows = [
-    { label: "Category", key: "category" },
-    { label: "Evidence", render: (compound) => evidenceLabel(compound.evidenceLevel) },
-    { label: "Goals", render: (compound) => compound.goalLabels.join(", ") },
-    { label: "Audience fit", key: "audienceNote" },
-    { label: "What it does in the body", key: "mechanism" },
-    { label: "Potential benefits", key: "benefits" },
-    { label: "Research snapshot", key: "research" },
-    { label: "Suggested resources", key: "resources" },
-  ];
-
   return `
-    <div class="compare-table-wrap" data-reveal style="--delay: 240ms">
+    <div class="compare-table-wrap" data-reveal style="--delay: 200ms">
       <table class="compare-table">
         <thead>
           <tr>
             <th>Field</th>
-            ${compounds.map((compound) => `<th>${escapeHtml(compound.name)}</th>`).join("")}
+            ${compounds
+              .map(
+                (compound) => `
+                  <th>
+                    <div class="compare-heading">
+                      <strong>${escapeHtml(compound.name)}</strong>
+                      <span>${escapeHtml(compound.category)}</span>
+                    </div>
+                  </th>
+                `,
+              )
+              .join("")}
           </tr>
         </thead>
         <tbody>
-          ${rows
+          ${compareRows
             .map(
               (row) => `
                 <tr>
                   <th>${escapeHtml(row.label)}</th>
-                  ${compounds
-                    .map((compound) => `<td>${escapeHtml(row.render ? row.render(compound) : compound[row.key])}</td>`)
-                    .join("")}
+                  ${compounds.map((compound) => `<td>${escapeHtml(compound[row.key])}</td>`).join("")}
                 </tr>
               `,
             )
@@ -1168,11 +1146,7 @@ function renderCompareTable(compounds) {
 }
 
 function renderSavedSet(set, delay) {
-  const names = set.ids
-    .map((id) => state.compoundMap.get(id)?.name)
-    .filter(Boolean)
-    .join(", ");
-
+  const names = set.ids.map((id) => state.compoundMap.get(id)?.name).filter(Boolean).join(", ");
   return `
     <article class="saved-set" data-reveal style="--delay: ${delay}ms">
       <div>
@@ -1196,7 +1170,7 @@ function renderInspector() {
     return `
       <div class="inspector-empty">
         <div class="inspector-empty-card">
-          <h2>Select a compound</h2>
+          <h2>Select a Compound</h2>
           <p>Choose a lane or search the library to begin exploring mechanisms, research, and potential benefits.</p>
         </div>
       </div>
@@ -1212,13 +1186,12 @@ function renderInspector() {
         <div class="detail-head-top">
           <div>
             <h2>${escapeHtml(compound.name)}</h2>
+            <p>${escapeHtml(compound.summary)}</p>
           </div>
-          <span class="evidence-pill">${escapeHtml(evidenceLabel(compound.evidenceLevel))}</span>
         </div>
-        <p>${escapeHtml(compound.categorySummary)}</p>
         <div class="detail-meta">
-          <span class="ghost-chip">${escapeHtml(compound.category)}</span>
-          ${compound.goalLabels.map((goal) => `<span class="chip">${escapeHtml(goal)}</span>`).join("")}
+          ${compound.categories.map((categoryId) => `<span class="ghost-chip">${escapeHtml(laneConfig[categoryId].title)}</span>`).join("")}
+          ${compound.tags.slice(0, 4).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
         </div>
       </header>
 
@@ -1228,20 +1201,9 @@ function renderInspector() {
         <button class="button-quiet" data-action="share-compound" data-id="${escapeHtml(compound.id)}">Share</button>
       </div>
 
-      ${compound.aliases.length
-        ? `
-          <section class="detail-section">
-            <h3>Aliases</h3>
-            <div class="detail-meta">
-              ${compound.aliases.map((alias) => `<span class="ghost-chip">${escapeHtml(alias)}</span>`).join("")}
-            </div>
-          </section>
-        `
-        : ""}
-
       <section class="detail-section">
-        <h3>Audience note</h3>
-        <p class="detail-section-copy">${escapeHtml(compound.audienceNote)}</p>
+        <h3>Summary</h3>
+        <p class="detail-section-copy">${escapeHtml(compound.summary)}</p>
       </section>
 
       <section class="detail-section">
@@ -1260,24 +1222,36 @@ function renderInspector() {
       </section>
 
       <section class="detail-section">
-        <h3>Suggested resources</h3>
-        <p class="detail-section-copy">${escapeHtml(compound.resources)}</p>
+        <h3>Suggested Resources</h3>
+        <div class="resource-list">
+          ${compound.resources
+            .map(
+              (resource) => `
+                <a class="resource-link" href="${escapeAttribute(resource.url)}" target="_blank" rel="noreferrer">
+                  <span>
+                    <strong>${escapeHtml(resource.title)}</strong>
+                    <span>${escapeHtml(resource.url)}</span>
+                  </span>
+                  <span class="resource-link-icon">${renderIcon("arrow.up.right")}</span>
+                </a>
+              `,
+            )
+            .join("")}
+        </div>
       </section>
     </article>
   `;
 }
 
 function renderPickerModal() {
+  const query = state.pickerFilter.trim().toLowerCase();
   const candidates = sortedCompounds(state.compounds)
     .filter((compound) => !state.compareIds.includes(compound.id))
-    .filter((compound) => {
-      const query = state.pickerFilter.trim().toLowerCase();
-      return !query || compound.searchableText.includes(query);
-    });
+    .filter((compound) => !query || compound.searchableText.includes(query));
 
   return `
-    <div class="modal-backdrop" data-action="close-picker">
-      <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-backdrop">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Add to compare">
         <div class="modal-head">
           <div>
             <h2 class="section-title">Add to compare</h2>
@@ -1286,13 +1260,7 @@ function renderPickerModal() {
           <button class="button-ghost" data-action="close-picker">Close</button>
         </div>
         <div class="modal-body">
-          <input
-            class="search-field"
-            type="search"
-            data-role="picker-filter"
-            placeholder="Filter compounds"
-            value="${escapeAttribute(state.pickerFilter)}"
-          />
+          <input class="search-field" type="search" data-role="picker-filter" placeholder="Filter compounds" value="${escapeAttribute(state.pickerFilter)}" />
           <div class="picker-list">
             ${candidates.length
               ? candidates
@@ -1301,7 +1269,7 @@ function renderPickerModal() {
                       <article class="picker-item">
                         <div>
                           <h3>${escapeHtml(compound.name)}</h3>
-                          <p>${escapeHtml(compound.categorySummary || compound.audienceNote)}</p>
+                          <p>${escapeHtml(compound.summary)}</p>
                         </div>
                         <div class="picker-actions">
                           <button class="button" data-action="picker-add" data-id="${escapeHtml(compound.id)}">Add</button>
@@ -1338,8 +1306,8 @@ function restoreFocus() {
   const target = document.querySelector(`[data-role="${state.focusTarget}"]`);
   if (target instanceof HTMLInputElement) {
     target.focus();
-    const valueLength = target.value.length;
-    target.setSelectionRange(valueLength, valueLength);
+    const length = target.value.length;
+    target.setSelectionRange(length, length);
   }
   state.focusTarget = null;
 }
@@ -1350,9 +1318,8 @@ function renderError(error) {
       <div class="error-card">
         <div class="boot-mark">PG</div>
         <h1>PeptideGuide could not load its data</h1>
-        <p>The web app expects to be served from the repo root so it can read <code>${escapeHtml(DATA_PATH)}</code>.</p>
+        <p>The web app expects to be served from the repo root so it can read <code>${escapeHtml(SWIFT_DATA_PATH)}</code>.</p>
         <p>${escapeHtml(error instanceof Error ? error.message : String(error))}</p>
-        <p>Run <code>python3 -m http.server 4173</code> in <code>/Users/shawnroland/Documents/Playground</code>, then open <code>http://localhost:4173/web/</code>.</p>
       </div>
     </div>
   `;
@@ -1396,6 +1363,27 @@ function persistState() {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
+function renderIcon(name) {
+  const icons = {
+    house: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5L12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/></svg>`,
+    magnifyingglass: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="5.5"/><path d="M16 16l4 4"/></svg>`,
+    "square.split.2x2": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M12 5v14"/><path d="M4 12h16"/></svg>`,
+    bookmark: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10v15l-5-3-5 3z"/></svg>`,
+    "bookmark.fill": `<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><path d="M7 4.5h10v15l-5-3-5 3z"/></svg>`,
+    gearshape: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.25"/><path d="M12 4.5v2.1"/><path d="M12 17.4v2.1"/><path d="M4.5 12h2.1"/><path d="M17.4 12h2.1"/><path d="M6.7 6.7l1.5 1.5"/><path d="M15.8 15.8l1.5 1.5"/><path d="M17.3 6.7l-1.5 1.5"/><path d="M8.2 15.8l-1.5 1.5"/></svg>`,
+    scalemass: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14"/><path d="M12 6.5v3"/><path d="M7 17.5a5 5 0 0 1 10 0"/><path d="M12 14.5l2.8-2"/></svg>`,
+    "cross.case": `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M9 7V5.5h6V7"/><path d="M12 10v5"/><path d="M9.5 12.5h5"/></svg>`,
+    "brain.head.profile": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18c-2.8 0-5-2.2-5-5V8a4 4 0 0 1 4-4h2.7c2.4 0 4.3 1.9 4.3 4.3V12a6 6 0 0 1-6 6z"/><path d="M11 8.5a2 2 0 0 0-2 2"/><path d="M11 12.5a2 2 0 0 1-2 2"/></svg>`,
+    "figure.strengthtraining.traditional": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10.5h12"/><path d="M4.5 8.5v4"/><path d="M19.5 8.5v4"/><path d="M8.5 10.5l2.5 7"/><path d="M15.5 10.5L13 17.5"/><circle cx="12" cy="6.5" r="1.5"/></svg>`,
+    allergens: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l6 2.3v4.7c0 4-2.3 6.4-6 8.1-3.7-1.7-6-4.1-6-8.1V6.8z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>`,
+    sparkles: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l1.2 3.3L16.5 9l-3.3 1.2L12 13.5l-1.2-3.3L7.5 9l3.3-1.2z"/><path d="M18 14.5l.8 2.1 2.2.8-2.2.8-.8 2.1-.8-2.1-2.2-.8 2.2-.8z"/><path d="M6 14.5l.8 2.1 2.2.8-2.2.8-.8 2.1-.8-2.1-2.2-.8 2.2-.8z"/></svg>`,
+    "bolt.heart": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5L8 12h3l-1 8.5L16 11h-3z"/><path d="M17.5 5.8a2.8 2.8 0 0 1 2.7 2.8c0 2.4-2 4.1-4.7 6.4-2.7-2.3-4.7-4-4.7-6.4a2.8 2.8 0 0 1 4.7-2.1 2.8 2.8 0 0 1 2-0.7z"/></svg>`,
+    "arrow.up.right": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16L16 8"/><path d="M9 8h7v7"/></svg>`,
+  };
+
+  return icons[name] || "";
+}
+
 function arrayOrEmpty(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -1404,33 +1392,20 @@ function unique(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function humanize(value) {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function evidenceLabel(level) {
-  if (!level) return "Evidence: Mixed";
-  return `Evidence: ${humanize(level)}`;
-}
-
 function sortLabel(value) {
-  if (value === "recentlyViewed") {
-    return "Recently Viewed";
-  }
-  if (value === "savedFirst") {
-    return "Saved First";
-  }
+  if (value === "recentlyViewed") return "Recently Viewed";
+  if (value === "savedFirst") return "Saved First";
   return "Alphabetical";
+}
+
+function slugify(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function arrayEquals(left, right) {
   if (left.length !== right.length) {
     return false;
   }
-
   return left.every((item, index) => item === right[index]);
 }
 
